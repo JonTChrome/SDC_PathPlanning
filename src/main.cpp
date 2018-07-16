@@ -256,10 +256,11 @@ int main() {
             
             int lane = 1;
             
-            double desired_vel = 0;
+            //mph
+            double desired_vel = 49.5;
             
             double speed_divisor = 10;
-            double ref_vel = desired_vel/10;
+            double ref_vel = desired_vel/speed_divisor;
             
             int prev_size = previous_path_x.size();
 
@@ -310,7 +311,6 @@ int main() {
             // }
             
             
-            
             vector<double> ptsx;
             vector<double> ptsy;
             
@@ -334,16 +334,11 @@ int main() {
                 double ref_y_prev = previous_path_y[prev_size - 2];
                 ref_yaw = atan2(ref_y - ref_y_prev, ref_x - ref_x_prev);
 
-                ptsx.push_back(previous_path_x[prev_size - 1]);
-                ptsx.push_back(previous_path_x[prev_size - 2]);
-                ptsy.push_back(previous_path_y[prev_size - 1]);
-                ptsy.push_back(previous_path_y[prev_size - 2]);
-                // for(int i = prev_size - PREVIOUS_PATH_POINTS_TO_KEEP - 1; i < prev_size - 1; i++) {
-                  // ptsx.push_back(previous_path_x[prev_size - i]);
-                  // ptsy.push_back(previous_path_y[prev_size - i]);
-                // }
+                ptsx.push_back(ref_x_prev);
+                ptsx.push_back(ref_x);
+                ptsy.push_back(ref_y_prev);
+                ptsy.push_back(ref_y);
             }
-            cout << "current recycled points: " << ptsx.size() << endl;
             
             //generate waypoints 30, 60, 90 meters out
             vector<double> next_wp0 =  getXY(car_s + 30, (2+ 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
@@ -370,7 +365,7 @@ int main() {
             tk::spline s;
             s.set_points(ptsx, ptsy);
             
-
+            //use all of our previous path points
             for (int i = 0; i < previous_path_x.size(); i++) {
                 next_x_vals.push_back(previous_path_x[i]);
                 next_y_vals.push_back(previous_path_y[i]);
@@ -382,6 +377,8 @@ int main() {
             double target_y = s(target_x);
             double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y));
             double x_add_on = 0;
+            
+            cout << "new points size: " << PATH_SIZE - previous_path_x.size()<< endl;
             
             for (int i = 1; i <= PATH_SIZE - previous_path_x.size(); i++) {
                 double N = (target_dist/(0.2*ref_vel/ 2.24));
@@ -402,9 +399,6 @@ int main() {
                 next_y_vals.push_back(y_point);
                 
             }
-            
-            
-            
             
             msgJson["next_x"] = next_x_vals;
             msgJson["next_y"] = next_y_vals;
