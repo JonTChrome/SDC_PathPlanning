@@ -35,10 +35,13 @@ CarState check_which_lane(vector<vector<double>> sensor_fusion, int lane, int pa
 	double cur_cost = 50000;
 	int newLane = lane;
 	double cost;
+	bool no_cars = true;
+	
 	for(int i = 0; i < sensor_fusion.size(); i++) {
         float d = sensor_fusion[i][6];
         //car is outside my lane
         if((d > 0) && (d > (2 + 4 * lane + 2) || d < (2 + 4 * lane - 2))) {
+        	no_cars = false;
             double vx = sensor_fusion[i][3];
             double vy = sensor_fusion[i][4];
             double check_speed = sqrt(vx*vx + vy*vy);
@@ -48,7 +51,7 @@ CarState check_which_lane(vector<vector<double>> sensor_fusion, int lane, int pa
             double dist_diff = abs(check_car_s - car_s);
             cout << "Car_s: " << car_s << endl;
             cout << "check car s: " << check_car_s << endl; 
-            if(!(check_car_s < car_s - MIN_DISTANCE_BEHIND) && (check_car_s > car_s + MIN_DISTANCE_AHEAD)) {
+            if((check_car_s < car_s - MIN_DISTANCE_BEHIND) || (check_car_s > car_s + MIN_DISTANCE_AHEAD)) {
              	cost = abs(check_speed - current_vel) * DIF_SPEED_WEIGHT + abs(check_car_s - car_s) * DIF_DIST_WEIGHT;
             	cout << "cost: " << cost << endl;
             	if (cost < cur_cost) {
@@ -62,8 +65,15 @@ CarState check_which_lane(vector<vector<double>> sensor_fusion, int lane, int pa
             		}
             	}
             }
-
-        }
+        } 
+	}
+	if(no_cars) {
+		foundPath = true;
+		if(lane > 0) {
+			returnState = change_lane_left;
+		} else {
+			returnState = change_lane_right;
+		}
 	}
 	if(foundPath) {
 		cout << "STATE FOUND" << endl;
