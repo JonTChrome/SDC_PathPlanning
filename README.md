@@ -22,7 +22,7 @@ The calculated trajectory used two parameters to generate that trajectory, lane 
 #### States
 
 ##### Accelerate
-  This state is used initialy to get up to the speed limit and whenever coming out of the deccelerate state as long as it is safe (no cars in front).  I chose to use an acceleration interval that maxed the jerk and acceleration at 8 m/s^2
+  This state is used initialy to get up to the speed limit and whenever coming gout of the deccelerate state as long as it is safe (no cars in front).  I chose to use an acceleration interval that maxed the jerk and acceleration at 8 m/s^2
 
 ##### Deccelerate
   Used anytime there is a car in front and no safe passing lanes
