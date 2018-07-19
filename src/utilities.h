@@ -25,9 +25,10 @@
 #define TRY_CHANGE_LANE_VEL  DESIRED_VEL - DESIRED_VEL *0.2
 
 using namespace std;
-
+//Finite States
 enum CarState { maintain, accelerate, deccelerate, change_lane_right, change_lane_left, try_change_lanes, changing_lanes};
 
+//We now want to change lanes, which lane should we choose?
 CarState check_which_lane(vector<vector<double>> sensor_fusion, int lane, int path_size, double car_s, double &current_vel, double &decel_vel) {
 	CarState returnState = maintain;
 	bool foundPath = false;
@@ -77,6 +78,7 @@ CarState check_which_lane(vector<vector<double>> sensor_fusion, int lane, int pa
 
 }
 
+//Have we completed our lane change?
 CarState check_lane_change_complete(int lane, double car_d) {
 	if(car_d < 2 + 4 * lane + 2 && car_d > 2 + 4 * lane - 2) {
 		return maintain;
@@ -84,6 +86,7 @@ CarState check_lane_change_complete(int lane, double car_d) {
 	return changing_lanes;
 }
 
+//main fsm transition function
 CarState check_lanes(vector<vector<double>> sensor_fusion, int lane, int path_size, double car_s, CarState current, double &current_vel, double &decel_vel) {
 	CarState returnState = accelerate;
 
@@ -119,8 +122,5 @@ CarState check_lanes(vector<vector<double>> sensor_fusion, int lane, int path_si
 	}
     return returnState;
 }
-
-
-
 
 #endif
