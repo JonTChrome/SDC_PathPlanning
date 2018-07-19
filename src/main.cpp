@@ -9,16 +9,9 @@
 #include "Eigen-3.3/Eigen/QR"
 #include "json.hpp"
 #include "spline.h"
+#include "utilities.h"
 
 using namespace std;
-
-
-#define PATH_SIZE 50
-#define DT 0.02 //Seconds per each point
-
-#define PREVIOUS_PATH_POINTS_TO_KEEP 5
-
-
 
 // for convenience
 using json = nlohmann::json;
@@ -209,8 +202,14 @@ int main() {
     map_waypoints_dy.push_back(d_y);
   }
 
-  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
-                     uWS::OpCode opCode) {
+  CarState current_state = accelerate;
+  int desired_lane = 1;
+
+  double ref_vel = 0;
+  double decel_vel = 0;
+
+  h.onMessage([&map_waypoints_x,&map_waypoints_y,&map_waypoints_s,&map_waypoints_dx,&map_waypoints_dy, &desired_lane, &current_state, &ref_vel, &decel_vel](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
+                     uWS::OpCode opCode){
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -244,7 +243,7 @@ int main() {
             double end_path_d = j[1]["end_path_d"];
 
             // Sensor Fusion Data, a list of all other cars on the same side of the road.
-            auto sensor_fusion = j[1]["sensor_fusion"];
+            vector<vector<double>> sensor_fusion = j[1]["sensor_fusion"];
 
             json msgJson;
 
@@ -254,62 +253,45 @@ int main() {
 
             // TODO: define a path made up of (x,y) points that the car will visit sequentially every .02 seconds
             
-            int lane = 1;
-            
-            //mph
-            double desired_vel = 49.5;
-            
-            double speed_divisor = 10;
-            double ref_vel = desired_vel/speed_divisor;
-            
             int prev_size = previous_path_x.size();
 
-            cout << "previous path size: " << prev_size << "   " << endl;
-
-            int subpath_size = min(PREVIOUS_PATH_POINTS_TO_KEEP, prev_size);
             
             if(prev_size > 0) {
                 car_s = end_path_s;
             }
+            //check and change current state
+            current_state = check_lanes(sensor_fusion, desired_lane, prev_size, car_s, current_state, ref_vel, decel_vel);
 
-            bool too_close = false;
-            for(int i = 0; i < sensor_fusion.size(); i++) {
-
-                float d = sensor_fusion[i][6];
-                //car is in my lane
-                if(d < (2 + 4 * lane + 2) && d > (2 + 4 * lane - 2)) {
-                    double vx = sensor_fusion[i][3];
-                    double vy = sensor_fusion[i][4];
-                    double check_speed = sqrt(vx*vx + vy*vy);
-                    double check_car_s = sensor_fusion[i][5];
-
-                    check_car_s += ((double)prev_size*.02*check_speed);
-                    if((check_car_s > car_s) && ((check_car_s - car_s) < 30)) {
-                        too_close = true;
-                    }
+            switch (current_state) {
+              case changing_lanes:
+                current_state = check_lane_change_complete(desired_lane, car_d);
+                break;
+              case accelerate:
+                if(ref_vel < DESIRED_VEL - ACCEL_INCREMENT) {
+                  ref_vel += ACCEL_INCREMENT;
+                } else {
+                  current_state = maintain;
                 }
-            }
-            
-            if(too_close) {
-                ref_vel -= .224/speed_divisor;
-            } else if(car_speed < 49.5) {
-                ref_vel += .224/speed_divisor;
+                break;
+              case deccelerate:
+                if(ref_vel > decel_vel) {
+                  ref_vel -= ACCEL_INCREMENT;
+                } else {
+                  current_state = maintain;
+                }
+                break;
+              case change_lane_left:
+                desired_lane -= 1;
+                break;
+              case change_lane_right:
+                desired_lane += 1;              
+                break;
+              case try_change_lanes:
+                break;
+              default:
+                break;
             }
 
-            //Predict other cars path
-            // double duration = PATH_SIZE * DT - subpath_size * DT;
-            // vector<Vehicle> other_cars;
-            // map<int, vector<vector<double>>> predictions;
-
-            // for (auto sf: sensor_fusion) {
-            //   double other_car_vel = sqrt(pow((double)sf[3], 2) + pow((double)sf[4], 2));
-            //   Vehicle other_car = Vehicle(sf[5], other_car_vel, 0, sf[6], 0, 0);
-            //   other_cars.push_back(other_car);
-            //   int v_id = sf[0];
-            //   vector<vector<double>> preds = other_car.generate_predictions(traj_start_time, duration);
-            //   predictions[v_id] = preds;
-            // }
-            
             
             vector<double> ptsx;
             vector<double> ptsy;
@@ -341,9 +323,9 @@ int main() {
             }
             
             //generate waypoints 30, 60, 90 meters out
-            vector<double> next_wp0 =  getXY(car_s + 30, (2+ 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp1 =  getXY(car_s + 60, (2+ 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
-            vector<double> next_wp2 =  getXY(car_s + 90, (2+ 4*lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp0 =  getXY(car_s + 30, (2+ 4*desired_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp1 =  getXY(car_s + 60, (2+ 4*desired_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
+            vector<double> next_wp2 =  getXY(car_s + 90, (2+ 4*desired_lane), map_waypoints_s, map_waypoints_x, map_waypoints_y);
             
             ptsx.push_back(next_wp0[0]);
             ptsx.push_back(next_wp1[0]);
@@ -370,15 +352,12 @@ int main() {
                 next_x_vals.push_back(previous_path_x[i]);
                 next_y_vals.push_back(previous_path_y[i]);
             }
-
-            cout << "next_x_vals: " << next_x_vals.size() << endl;
             
             double target_x = 30.0;
             double target_y = s(target_x);
             double target_dist = sqrt((target_x)*(target_x)+(target_y)*(target_y));
             double x_add_on = 0;
             
-            cout << "new points size: " << PATH_SIZE - previous_path_x.size()<< endl;
             
             for (int i = 1; i <= PATH_SIZE - previous_path_x.size(); i++) {
                 double N = (target_dist/(0.2*ref_vel/ 2.24));
